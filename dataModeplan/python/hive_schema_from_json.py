@@ -94,7 +94,14 @@ def load_json_file(path: Union[str, Path]) -> Dict[str, Any]:
 def ensure_identifier(name: str) -> str:
     if not name or not isinstance(name, str):
         raise ValueError("Identifier must be a non-empty string")
-    return name
+    trimmed = name.strip()
+    if not trimmed:
+        raise ValueError("Identifier cannot be only whitespace")
+    # Basic safety: restrict to common Hive identifier charset; database and table names
+    # are quoted elsewhere using backticks, so we avoid accepting backticks here.
+    if "`" in trimmed:
+        raise ValueError("Identifier must not contain backticks")
+    return trimmed
 
 
 PrimitiveType = str
@@ -114,7 +121,7 @@ def hive_type_from_json(type_spec: Any) -> str:
             if not isinstance(mp, dict) or "key" not in mp or "value" not in mp:
                 raise ValueError("map type must be an object with 'key' and 'value'")
             key_t = hive_type_from_json(mp["key"])  # Hive requires primitive keys
-            val_t = hive_type_from_json(mp["value"])\
+            val_t = hive_type_from_json(mp["value"])
             
             return f"map<{key_t},{val_t}>"
         if "struct" in type_spec:
@@ -197,7 +204,7 @@ def tblproperties_ddl(props: Optional[Dict[str, Any]]) -> Optional[str]:
     return f"TBLPROPERTIES ({items})"
 
 
-def build_create_table(schema: Dict[str, Any], override_db: Optional[str], override_table: Optional[str], external_flag: Optional[bool]) -> str:
+def build_create_table(schema: Dict[str, Any], override_db: Optional[str], override_table: Optional[str], external_flag: Optional[bool], if_not_exists: bool = False) -> str:
     database = ensure_identifier(override_db or schema.get("database", "default"))
     table = ensure_identifier(override_table or schema.get("table"))
     if not table:
@@ -215,7 +222,8 @@ def build_create_table(schema: Dict[str, Any], override_db: Optional[str], overr
 
     lines: List[str] = []
     table_kw = "EXTERNAL TABLE" if is_external else "TABLE"
-    lines.append(f"CREATE {table_kw} `{database}`.`{table}`")
+    ine = " IF NOT EXISTS" if if_not_exists else ""
+    lines.append(f"CREATE{ine} {table_kw} `{database}`.`{table}`")
     if comment:
         lines.append(f"COMMENT '{comment}'")
     lines.append("(")
@@ -253,6 +261,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--external", action="store_true", help="Create EXTERNAL table")
     p.add_argument("--managed", action="store_true", help="Force managed table (overrides schema)")
     p.add_argument("--output", "-o", help="Write DDL to file path")
+    p.add_argument("--if-not-exists", action="store_true", help="Include IF NOT EXISTS in CREATE statement")
     p.add_argument("--print-example", action="store_true", help="Print example JSON schema and exit")
     return p.parse_args(argv)
 
@@ -278,7 +287,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.external:
             external_flag = True
 
-        ddl = build_create_table(schema, args.database, args.table, external_flag)
+        ddl = build_create_table(schema, args.database, args.table, external_flag, if_not_exists=bool(getattr(args, "if_not_exists", False)))
         if args.output:
             Path(args.output).write_text(ddl, encoding="utf-8")
         else:
