@@ -1,0 +1,1 @@
+{"database": "d1", "table": "abc", "external": true, "comment": "test", "stored_as": "parquet", "columns": [{"name": "id", "type": "bigint", "comment": "pk"}, {"name": "attrs", "type": {"map": {"key": "string", "value": {"array": "int"}}}}, {"name": "info", "type": {"struct": {"a": "string", "b": {"array": "string"}}}}], "partitions": [{"name": "dt", "type": "string"}]}
