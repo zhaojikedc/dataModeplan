@@ -1,0 +1,94 @@
+flowchart LR
+  %% 外部数据源
+  subgraph ext[外部数据源]
+    API[接口方式]
+    FILES[定期文件]
+    ONCE[一次性数据文件]
+    DB[数据库对接]
+  end
+
+  %% 接入与落地
+  subgraph ingest[数据接入/采集]
+    COLLECT[传输与落地\n批/流]
+    DQC1[基本校验/去污]
+  end
+
+  %% 缓冲库（临时，不保留历史）
+  subgraph stg[缓冲库（临时，不保留历史）]
+    STG[临时原始表/临时区]
+    CLEAN[质量复核/规范化草稿]
+  end
+
+  %% 用户确认
+  subgraph confirm[用户确认]
+    CONF[确认无误/签收]
+  end
+
+  %% ODS（长期保留历史）
+  subgraph ods[ODS（长期保留历史）]
+    ODS[标准化原始层\nSchema 对齐/全量留存]
+  end
+
+  %% DWD 明细层
+  subgraph dwd[DWD（明细层）]
+    DWD[去重/拉链/事务型明细]
+  end
+
+  %% DWS 汇总层
+  subgraph dws[DWS（汇总层）]
+    DWS[主题汇总/宽表\n指标口径统一]
+  end
+
+  %% DM 数据集市
+  subgraph dm[DM（数据集市）]
+    DM[按域/场景的数据集]
+  end
+
+  %% 消费端
+  subgraph consumers[数据消费]
+    BI[BI/报表/自助分析]
+    SVC[应用/接口服务]
+    ML[数据科学/特征库]
+  end
+
+  %% 数据流向
+  API --> COLLECT
+  FILES --> COLLECT
+  ONCE --> COLLECT
+  DB --> COLLECT
+
+  COLLECT --> DQC1 --> STG --> CLEAN --> CONF --> ODS --> DWD --> DWS --> DM
+  DM --> BI
+  DM --> SVC
+  DM --> ML
+
+  %% 治理与支撑
+  META[(元数据/血缘/数据字典)]
+  SEC[(权限/脱敏/审计)]
+  SCHED[(调度/编排/监控)]
+
+  META --- ODS
+  META --- DWD
+  META --- DWS
+  META --- DM
+
+  SEC --- ODS
+  SEC --- DWD
+  SEC --- DWS
+  SEC --- DM
+
+  SCHED -.-> COLLECT
+  SCHED -.-> DWD
+  SCHED -.-> DWS
+  SCHED -.-> DM
+
+  %% 样式
+  classDef temp fill:#fff2cc,stroke:#d6b656,stroke-width:1px
+  classDef hist fill:#d9ead3,stroke:#93c47d,stroke-width:1px
+  classDef proc fill:#dae8fc,stroke:#6c8ebf,stroke-width:1px
+  classDef gov fill:#f4cccc,stroke:#cc0000,stroke-width:1px
+
+  class STG,CLEAN temp
+  class ODS hist
+  class DWD,DWS,DM proc
+  class META,SEC,SCHED gov
